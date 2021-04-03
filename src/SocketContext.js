@@ -13,6 +13,7 @@ const ContextProvider = ({children}) => {
     const [call, setCall] = useState({})
     const [callAccepted, setCallAccepted] = useState(false)
     const [callEnded, setCallEnded] = useState(false)
+    const [name, setName] = useState('')
 
     const myVideo = useRef()
     const userVideo = useRef()
@@ -35,7 +36,7 @@ const ContextProvider = ({children}) => {
     const answerCall = () => {
         setCallAccepted(true)
 
-        const peer = new Peer({ initiator: false, trickle: false, stream })
+        const peer = new Peer({ initiator: false, trickle: false, stream })  //initiator set to false because other user is making the call
 
         peer.on('signal', (data) => {
             socket.emit('answercall', {signal: data, to: call.from})
@@ -50,11 +51,41 @@ const ContextProvider = ({children}) => {
         connectionRef.current = peer  //current connection is equal to the current peer inside this connection
     }
 
-    const callUser = () => {
-        
+    const callUser = (id) => {
+        const peer = new Peer({ initiator: true, trickle: false, stream })  // initiator set to true because i am making the call
+
+        peer.on('signal', (data) => {
+            socket.emit('calluser', {userToCall: id, signalData: data, from: me, name})
+        })
+
+        peer.on('stream', (currentStream) => {
+            userVideo.current.srcObject = currentStream  // other users stream
+        })
+
+        socket.on('callaccepted', (signal) => {
+            setCallAccepted(true)
+            peer.signal(signal)
+        })
+
+        connectionRef.current = peer  //current connection is equal to the current peer inside this connection
     }
 
     const leaveCall = () => {
-        
+        setCallEnded(true)   // call ended
+
+        connectionRef.current.destroy()  // destroy connection. stop receiving audio and video stream
+
+        window.location.reload()
     }
+
+
+    return (
+        <SocketContext.Provider value={{
+            call, callAccepted, myVideo, userVideo, stream, name, setName, callEnded, me, callUser, leaveCall, answerCall
+        }}>
+           { children }
+        </SocketContext.Provider>
+    )
 }
+
+export { ContextProvider, SocketContext }
